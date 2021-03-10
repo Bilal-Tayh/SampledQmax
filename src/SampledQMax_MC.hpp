@@ -33,11 +33,16 @@ class SampledQMax_MC
     __m256i rand_bits;
     std::priority_queue <int, std::vector<int> ,std::greater<int>> testp;
     int testSize;
+    int Z_bound;
+    int switch_To_LV_Flag;
+    int mask;
+    void maintenance_LV();
 public:
 	void reset();
 	int findKthLargestAndPivot();
 	SampledQMax_MC(int q, float gamma);
 	void insert(int id);
+    
 	float* largestQ();
 	void print();
     int checkPivot(int value);
@@ -46,8 +51,9 @@ public:
     int test();
     int findReplaceValueIndex(int value);
     uint32_t mm256_extract_epi32_var_indx(int i);
-    void replaceOneOf8(int v);
     void updateZK();
+    int findKthLargestAndPivot_LV();
+    void insert_LV(int id);
 };
 #endif
 
