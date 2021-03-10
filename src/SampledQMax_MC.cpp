@@ -75,6 +75,7 @@ void SampledQMax_MC::insert(int v){
             if(mask == 0){
                 _curIdx+=8;
             }
+            return;
         }
                 
         
@@ -364,5 +365,7 @@ void SampledQMax_MC::reset(){
 	_phi = 0;
     phi_x8 = _mm256_set1_ps((float)_phi);
 	_curIdx = 0;
+    switch_To_LV_Flag = 0;
+    mask=0;
 }
 

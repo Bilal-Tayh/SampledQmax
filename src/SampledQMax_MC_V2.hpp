@@ -73,6 +73,10 @@ class SampledQMax_MC_V2
 	std::priority_queue <int, std::vector<int>, std::greater<int>> testp;
 	int testSize;
     int _correctness_threshold;
+    int Z_bound;
+    int switch_To_LV_Flag;
+    int mask;
+    void maintenance_LV();
 public:
 	void reset();
 	int findKthLargestAndPivot();
@@ -87,6 +91,8 @@ public:
     void get8samples();
     void replaceOneOf8(int v);
     void updateZK();
+    int findKthLargestAndPivot_LV();
+    void insert_LV(int id);
 };
 
 #include "SampledQMax_MC_V2.hpp"
@@ -137,14 +143,14 @@ SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     if (_Z & 0b111) // integer multiple of 8
         _Z = _Z - (_Z & 0b111) + 8;
     _k = _Z * (_alpha * _gamma) / (1 + _gamma)+0.5;
-    
-//     printf("%d\n",_k);
-    
     gen_arr();
     //rand_bits = _mm256_set_epi64x(gen_arr(), gen_arr(), gen_arr(), gen_arr());
     counter = 0;
     initFastMod(_actualsize);
     _correctness_threshold = int(_gamma * q);
+    Z_bound = q/10;
+    switch_To_LV_Flag = 0;
+    mask=0;
 }
 
 
@@ -155,6 +161,22 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
 		return;
 	}
 	else{
+        
+        if(switch_To_LV_Flag == 1){
+            return  insert_LV(v);  
+            
+        }
+        
+        
+         if(mask !=0){
+            unsigned int emptySlot = _tzcnt_u32(mask);
+            _A[_curIdx + emptySlot] = float(v);
+            mask = mask & (~ int(pow(2,emptySlot)));
+            if(mask == 0){
+                _curIdx+=8;
+            }
+            return;
+        }
         
         while(true){
             
@@ -167,20 +189,36 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
                         return;
                     }
                 }
-                maintenance();   
+                maintenance(); 
+                // to make transition from MC to LV we need to Partition around the pivot and update the current index
+                if(switch_To_LV_Flag == 1){
+                    int left = 0, right = _actualsizeMinusOne;
+                    int pivot_idx = findValueIndex(_phi);
+                    int new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, (int*)_A);
+                    _curIdx = new_pivot_idx;
+                    return  insert_LV(v);  
+                    
+                }
             }
             
             
+           
             const __m256 item2 = _mm256_loadu_ps(_A+_curIdx);
             
             
             const __m256 match1 = _mm256_cmp_ps(item2,phi_x8, _CMP_LE_OS);
             
-            const int mask1 = _mm256_movemask_ps(match1);
+            int mask1 = _mm256_movemask_ps(match1);
             
             // if one of the 8 elemnts we checked are lower than phi we replace it
             if(mask1!=0){
-                replaceOneOf8(v);
+                    unsigned int emptySlot = _tzcnt_u32(mask1);
+                    _A[_curIdx + emptySlot] = float(v);
+                    
+                    mask = mask1 & (~ (int(pow(2,emptySlot))));
+                    if(mask == 0){
+                        _curIdx+=+8;
+                    }
                 return;
             }
             else{
@@ -192,18 +230,16 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
 }
 
 
-// finding which one of the 8 elemnts (starting from _curIdx) is lower than phi
-// this function to be called only in case we know for sure that one of the 8 elemnts from _curIdx are lower than phi.
+
 template<int q, int _actualsize>
-void SampledQMax_MC_V2<q, _actualsize>::replaceOneOf8(int v){
-    for(int j=_curIdx;j<_curIdx+8;j++){
-        if(_A[j]<=_phi){
-            _A[j] = float(v);
-            _curIdx=j+1;
-            break;
-        }
+void SampledQMax_MC_V2<q, _actualsize>::insert_LV(int v){
+    _A[--_curIdx] = v;
+    if (_curIdx){
+        return;
     }
-    
+    else {
+        maintenance_LV();
+    }
 }
 
 
@@ -214,6 +250,14 @@ void SampledQMax_MC_V2<q, _actualsize>::maintenance() {
     _phi = findKthLargestAndPivot();
     phi_x8 = _mm256_set1_ps((float)_phi);
     _curIdx = 0;
+}
+
+
+
+
+template<int q, int _actualsize>
+void SampledQMax_MC_V2<q, _actualsize>::maintenance_LV(){
+	_phi = findKthLargestAndPivot_LV();
 }
 
 template<int q, int _actualsize>
@@ -352,7 +396,7 @@ int SampledQMax_MC_V2<q, _actualsize>::checkPivot(int value) {
            return -1;
        }
        
-       new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, _A);
+       new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, (int*)_A);
 #else
         new_pivot_idx = PartitionAroundPivotValue(left, right, value, _A);
 #endif
@@ -365,6 +409,78 @@ int SampledQMax_MC_V2<q, _actualsize>::checkPivot(int value) {
         //}
     }
     return -1*new_pivot_idx;
+}
+
+
+
+
+
+
+template<int q, int _actualsize>
+int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
+   int tries = 2;
+    while (tries != 0) {
+
+        // p should contain the smallest _k values from the _Z sampled random values from _A
+        std::priority_queue <int> p;
+        int left_to_fill = _k;
+        while (left_to_fill > 0) {
+            get8samples();
+            for (int i = 0; i < 8; ++i) {
+                p.push(_A[eight_samples.i[i]]);
+            }
+            left_to_fill -= 8;
+        }
+
+        int left_to_sample = _Z-_k+ left_to_fill;
+        while (left_to_fill++ < 0) {
+            p.pop();
+        }
+        /*
+        for (int i = 0; i < _k; i++) {
+            int j = GenerateRandom();
+            p.push(_A[j]);
+        }*/
+        int top = p.top();
+
+        while (left_to_sample > 0) {
+            get8samples();
+            for (int i = 0; i < 8; ++i) {
+                if (top > _A[eight_samples.i[i]]) {
+                    p.pop();
+                    p.push(_A[eight_samples.i[i]]);
+                    top = p.top();
+                }
+            }
+            left_to_sample -= 8;
+        }
+
+        // check if the conditions holds for the possible pivot B[Kth_minimal_idx]
+        int idx = checkPivot(top);
+        if (idx > 0) {
+            _curIdx = idx;
+            return _A[idx];
+        }
+        tries--;
+    }
+
+    // sampling didn't work twice so we are doing the old SampledQMax_LV_V2<q, _actualsize> maintanance
+    int left = 0, right = _actualsizeMinusOne;
+    while (left <= right) {
+        int pivot_idx = left;
+        int new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, (int*)_A);
+        if (new_pivot_idx == _nminusq) {
+            _curIdx = new_pivot_idx;
+            return _A[new_pivot_idx];
+        }
+        else if (new_pivot_idx > _nminusq) {
+            right = new_pivot_idx - 1;
+        }
+        else {  // new_pivot_idx < _q - 1.
+            left = new_pivot_idx + 1;
+        }
+    }
+
 }
 
 
@@ -406,6 +522,9 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
             left_to_sample -= 8;
         }
     updateZK();
+     if(_Z >= Z_bound){
+        switch_To_LV_Flag = 1;
+    }
     return top;
         
 	
@@ -423,6 +542,8 @@ template<int q, int _actualsize>
 void SampledQMax_MC_V2<q, _actualsize>::reset() {
     _phi = 0;
     _curIdx = 0;
+    switch_To_LV_Flag = 0;
+    mask=0;
 }
 
 #endif
