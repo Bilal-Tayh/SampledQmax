@@ -64,6 +64,7 @@ class SampledQMax_MC_V2
     int PartitionAroundPivotValue(int left, int right, int pivot_val, int* nums);
     int PartitionAroundPivot(int left, int right, int pivot_idx, int* nums);
 	double _delta;
+    double _ORGdelta;
 	double _alpha;
 	double _psi;
 	int _k;
@@ -137,6 +138,7 @@ SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     _nminusq = _actualsize - q;
     _phi = 0;
     _delta = 1-0.001;
+    _ORGdelta = _delta;
     _alpha = 0.83;
     _psi = 2.0 / 3.0;
     _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
@@ -192,12 +194,8 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
                     }
                 }
                 maintenance(); 
-                // to make transition from MC to LV we need to Partition around the pivot and update the current index
+                // to make transition from MC to LV we need to update the current index
                 if(switch_To_LV_Flag == 1){
-                    int left = 0, right = _actualsizeMinusOne;
-                    int pivot_idx = findValueIndex(_phi);
-                    int new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, (int*)_A);
-                    _curIdx = new_pivot_idx;
                     return  insert_LV(v);  
                     
                 }
@@ -207,12 +205,6 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
         //     __m256i b = _mm256_load_si256((__m256i *)&_A[_curIdx]);
             __m256i a = (__m256i)phi_x8;
 
-
-
-
-//             __m256i b =  _mm256_setr_epi32(1,1,1,1,1,1,1,1);
-//             __m256i a =  _mm256_set1_epi32(_phi);
-//             __m256i a = (__m256i)phi_x8;
 
                 
             __m256i match1 = _mm256_cmpgt_epi32(phi_x8,b);
@@ -261,7 +253,13 @@ void SampledQMax_MC_V2<q, _actualsize>::insert_LV(int v){
 
 template<int q, int _actualsize>
 void SampledQMax_MC_V2<q, _actualsize>::maintenance() {
-    _phi = findKthLargestAndPivot();
+    int a = findKthLargestAndPivot();
+    
+    if(switch_To_LV_Flag == 1){
+        return maintenance_LV();
+    }
+    
+    _phi = a;
     phi_x8 = _mm256_set1_epi32(_phi+1);
     _curIdx = 0;
 }
@@ -274,6 +272,8 @@ void SampledQMax_MC_V2<q, _actualsize>::maintenance_LV(){
 	_phi = findKthLargestAndPivot_LV();
 }
 
+
+
 template<int q, int _actualsize>
 float* SampledQMax_MC_V2<q, _actualsize>::largestQ() {
     maintenance();
@@ -281,11 +281,6 @@ float* SampledQMax_MC_V2<q, _actualsize>::largestQ() {
 }
 
 
-// inline void swap(int& x, int& y) {
-//     int z = x;
-//     x = y;
-//     y = z;
-// }
 
 template<int q, int _actualsize>
 int SampledQMax_MC_V2<q, _actualsize>::PartitionAroundPivotValue(int left, int right, int pivot_val, int* nums) {
@@ -434,6 +429,8 @@ template<int q, int _actualsize>
 int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
    int tries = 2;
     while (tries != 0) {
+        
+        
 
         // p should contain the smallest _k values from the _Z sampled random values from _A
         std::priority_queue <int> p;
@@ -501,10 +498,28 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
 
 template<int q, int _actualsize>
 int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
-
-        // p should contain the smallest _k values from the _Z sampled random values from _A
+        
+        int Z = _Z;
+        int k = _k;
+        _delta=_delta/2.0;
+        updateZK();
+        
+        if(_Z >= Z_bound){
+            switch_To_LV_Flag = 1;
+            _delta = _ORGdelta;
+            _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
+            _Z = (int)((_k * (1 + _gamma)) / (_alpha * _gamma));
+            
+            if (_Z & 0b111) // integer multiple of 8
+            _Z = _Z - (_Z & 0b111) + 8;
+            _k = _Z * (_alpha * _gamma) / (1 + _gamma)+0.5;
+            return -1;
+        } 
+        
+        
+        // p should contain the smallest k values from the Z sampled random values from _A
         std::priority_queue <int> p;
-        int left_to_fill = _k;
+        int left_to_fill = k;
         while (left_to_fill > 0) {
             get8samples();
             for (int i = 0; i < 8; ++i) {
@@ -513,12 +528,12 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
             left_to_fill -= 8;
         }
 
-        int left_to_sample = _Z-_k+ left_to_fill;
+        int left_to_sample = Z-k+ left_to_fill;
         while (left_to_fill++ < 0) {
             p.pop();
         }
         /*
-        for (int i = 0; i < _k; i++) {
+        for (int i = 0; i < k; i++) {
             int j = GenerateRandom();
             p.push(_A[j]);
         }*/
@@ -535,10 +550,6 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
             }
             left_to_sample -= 8;
         }
-    updateZK();
-     if(_Z >= Z_bound){
-        switch_To_LV_Flag = 1;
-    }
     return top;
         
 	
