@@ -128,7 +128,7 @@ SampledQMax_LV_V2<q, _actualsize>::SampledQMax_LV_V2() {
     _qMinusOne = q - 1;
     _nminusq = _actualsize - q;
     _phi = -1;
-    _delta = 0.001;
+    _delta = 1-0.001;
     _alpha = 0.83;
     _psi = 2.0 / 3.0;
     _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
@@ -137,7 +137,7 @@ SampledQMax_LV_V2<q, _actualsize>::SampledQMax_LV_V2() {
         _Z = _Z - (_Z & 0b111) + 8;
     _k = _Z * (_alpha * _gamma) / (1 + _gamma)+0.5;
     
-//     printf("%d\n",_k);   
+  
     
     gen_arr();
     //rand_bits = _mm256_set_epi64x(gen_arr(), gen_arr(), gen_arr(), gen_arr());
@@ -351,11 +351,7 @@ int SampledQMax_LV_V2<q, _actualsize>::findKthLargestAndPivot() {
         while (left_to_fill++ < 0) {
             p.pop();
         }
-        /*
-        for (int i = 0; i < _k; i++) {
-            int j = GenerateRandom();
-            p.push(_A[j]);
-        }*/
+        
         int top = p.top();
 
         while (left_to_sample > 0) {

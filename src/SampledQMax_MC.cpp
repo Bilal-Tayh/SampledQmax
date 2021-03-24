@@ -116,8 +116,7 @@ void SampledQMax_MC::insert(int v){
             if(mask1!=0){
                     unsigned int emptySlot = _tzcnt_u32(mask1);
                     _A[_curIdx + emptySlot] = float(v);
-                    
-                    mask = mask1 & (~ (int(pow(2,emptySlot))));
+                    mask = mask1 & (~ (1<<emptySlot));
                     if(mask == 0){
                         _curIdx+=+8;
                     }

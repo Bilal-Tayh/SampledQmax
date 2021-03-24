@@ -50,14 +50,15 @@ void initFastMod(uint32_t d) {                                 // Set or change 
 template<int q, int _actualsize>
 class SampledQMax_MC_V2
 {
-	float* _A;
+	int* _A;
 	int _curIdx;
 	int _actualsizeMinusOne;
 	int _qMinusOne;
 	float _gamma;
 	int _nminusq;
-    __m256 phi_x8;
+    __m256i phi_x8;
 	int _phi;
+    int remove_position[8]= {~(15), ~(240),~(3840), ~(61440), ~(983040), ~(15728640), ~(251658240), ~(-268435456)};
 	std::default_random_engine _generator;
 	void maintenance();
     int PartitionAroundPivotValue(int left, int right, int pivot_val, int* nums);
@@ -127,7 +128,7 @@ template<int q, int _actualsize>
 SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     _actualsizeMinusOne = _actualsize - 1;
     _curIdx = 0;
-    _A = (float*)malloc(sizeof(float) * _actualsize);
+    _A = (int*)malloc(sizeof(int) * _actualsize);
     if (!_A)
         exit(1);
     _gamma = (double)_actualsize / q - 1;
@@ -151,6 +152,7 @@ SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     Z_bound = q/10;
     switch_To_LV_Flag = 0;
     mask=0;
+    phi_x8 = _mm256_set1_epi32(_phi+1);
 }
 
 
@@ -169,9 +171,9 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
         
         
          if(mask !=0){
-            unsigned int emptySlot = _tzcnt_u32(mask);
-            _A[_curIdx + emptySlot] = float(v);
-            mask = mask & (~ int(pow(2,emptySlot)));
+            unsigned int emptySlot = _tzcnt_u32(mask)>>2;
+            _A[_curIdx + emptySlot] = (v);
+            mask = mask & (remove_position[emptySlot]);
             if(mask == 0){
                 _curIdx+=8;
             }
@@ -184,7 +186,7 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
             if(_curIdx+7>=_actualsize){
                 for(int j=_curIdx;j<_actualsize;j++){
                     if(_A[j]<=_phi){
-                        _A[j] = float(v);
+                        _A[j] = (v);
                         _curIdx = j+1;
                         return;
                     }
@@ -200,22 +202,34 @@ void SampledQMax_MC_V2<q, _actualsize>::insert(int v) {
                     
                 }
             }
+
+            __m256i b =  _mm256_setr_epi32(_A[0+_curIdx], _A[1+_curIdx], _A[2+_curIdx], _A[3+_curIdx], _A[4+_curIdx], _A[5+_curIdx], _A[6+_curIdx], _A[7+_curIdx]);
+        //     __m256i b = _mm256_load_si256((__m256i *)&_A[_curIdx]);
+            __m256i a = (__m256i)phi_x8;
+
+
+
+
+//             __m256i b =  _mm256_setr_epi32(1,1,1,1,1,1,1,1);
+//             __m256i a =  _mm256_set1_epi32(_phi);
+//             __m256i a = (__m256i)phi_x8;
+
+                
+            __m256i match1 = _mm256_cmpgt_epi32(phi_x8,b);
+            int mask1 = _mm256_movemask_epi8(match1);
             
             
-           
-            const __m256 item2 = _mm256_loadu_ps(_A+_curIdx);
             
             
-            const __m256 match1 = _mm256_cmp_ps(item2,phi_x8, _CMP_LE_OS);
             
-            int mask1 = _mm256_movemask_ps(match1);
             
             // if one of the 8 elemnts we checked are lower than phi we replace it
             if(mask1!=0){
-                    unsigned int emptySlot = _tzcnt_u32(mask1);
-                    _A[_curIdx + emptySlot] = float(v);
                     
-                    mask = mask1 & (~ (int(pow(2,emptySlot))));
+                    unsigned int emptySlot = _tzcnt_u32(mask1)>>2;
+                    _A[_curIdx + emptySlot] = (v);
+                    mask = mask1 & (remove_position[emptySlot]);
+                    
                     if(mask == 0){
                         _curIdx+=+8;
                     }
@@ -248,7 +262,7 @@ void SampledQMax_MC_V2<q, _actualsize>::insert_LV(int v){
 template<int q, int _actualsize>
 void SampledQMax_MC_V2<q, _actualsize>::maintenance() {
     _phi = findKthLargestAndPivot();
-    phi_x8 = _mm256_set1_ps((float)_phi);
+    phi_x8 = _mm256_set1_epi32(_phi+1);
     _curIdx = 0;
 }
 
@@ -489,7 +503,7 @@ template<int q, int _actualsize>
 int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
 
         // p should contain the smallest _k values from the _Z sampled random values from _A
-        std::priority_queue <float> p;
+        std::priority_queue <int> p;
         int left_to_fill = _k;
         while (left_to_fill > 0) {
             get8samples();
@@ -508,7 +522,7 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
             int j = GenerateRandom();
             p.push(_A[j]);
         }*/
-        float top = p.top();
+        int top = p.top();
 
         while (left_to_sample > 0) {
             get8samples();
@@ -547,4 +561,3 @@ void SampledQMax_MC_V2<q, _actualsize>::reset() {
 }
 
 #endif
-
