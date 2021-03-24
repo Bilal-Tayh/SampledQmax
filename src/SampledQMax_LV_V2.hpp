@@ -72,6 +72,7 @@ class SampledQMax_LV_V2
 	std::priority_queue <int, std::vector<int>, std::greater<int>> testp;
 	int testSize;
     int _correctness_threshold;
+    int _min_maintenance_free;
 public:
 	void reset();
 	int findKthLargestAndPivot();
@@ -128,14 +129,16 @@ SampledQMax_LV_V2<q, _actualsize>::SampledQMax_LV_V2() {
     _qMinusOne = q - 1;
     _nminusq = _actualsize - q;
     _phi = -1;
-    _delta = 1-0.001;
+    _delta = 1-0.005;
     _alpha = 0.83;
-    _psi = 2.0 / 3.0;
+    _psi = 1.0 / 5.0;
     _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
     _Z = (int)((_k * (1 + _gamma)) / (_alpha * _gamma));
     if (_Z & 0b111) // integer multiple of 8
         _Z = _Z - (_Z & 0b111) + 8;
     _k = _Z * (_alpha * _gamma) / (1 + _gamma)+0.5;
+    
+//     printf("%d\n",_k);
     
   
     
@@ -144,6 +147,7 @@ SampledQMax_LV_V2<q, _actualsize>::SampledQMax_LV_V2() {
     counter = 0;
     initFastMod(_actualsize);
     _correctness_threshold = int(_gamma * q);
+    _min_maintenance_free = int(_gamma * q * _psi);
 }
 
 
@@ -322,10 +326,15 @@ int SampledQMax_LV_V2<q, _actualsize>::checkPivot(int value) {
     
 
     if (new_pivot_idx <= _correctness_threshold) {
-        //if (new_pivot_idx >= int(_gamma * q * _psi)) {
+        if (new_pivot_idx >= _min_maintenance_free) {
             return new_pivot_idx;
-        //}
+        }
+        else{
+//                 printf("2:  %d\n",new_pivot_idx);
+                return -1;
+        }
     }
+//     printf("1:  %d\n",new_pivot_idx);
     return -1*new_pivot_idx;
 }
 
@@ -372,6 +381,29 @@ int SampledQMax_LV_V2<q, _actualsize>::findKthLargestAndPivot() {
             _curIdx = idx;
             return _A[idx];
         }
+        else if(idx < -1){
+            int l = -idx - _correctness_threshold;
+//             printf("l = %d\n",l);
+            int pop = ( _k * ( 1- (q*_gamma*_alpha)/(l+(q*_gamma)) ) );
+//             printf("per = %f\n", (_k-1) -_k *( (q*_gamma*_alpha)/(l+(q*_gamma)) ));
+//             printf("pop = %d\n",pop);
+            for(int i=0;i<pop;i++){
+                p.pop();
+            }
+            top = p.top();
+            idx = checkPivot(top);
+//             printf("newidx = %d\n",idx);
+            if(idx < 0){
+//                 int s;
+//                 printf("wrong\n");
+//                 scanf("wrong %d\n",s);
+            }
+            else{
+                _curIdx = idx;
+                return top;
+            }
+        }
+            
         tries--;
     }
 

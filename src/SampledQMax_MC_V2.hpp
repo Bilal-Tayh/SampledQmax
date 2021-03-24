@@ -64,7 +64,8 @@ class SampledQMax_MC_V2
     int PartitionAroundPivotValue(int left, int right, int pivot_val, int* nums);
     int PartitionAroundPivot(int left, int right, int pivot_idx, int* nums);
 	double _delta;
-    double _ORGdelta;
+    double _LVdelta;
+    double _MCdelta;
 	double _alpha;
 	double _psi;
 	int _k;
@@ -75,6 +76,7 @@ class SampledQMax_MC_V2
 	std::priority_queue <int, std::vector<int>, std::greater<int>> testp;
 	int testSize;
     int _correctness_threshold;
+    int _min_maintenance_free;
     int Z_bound;
     int switch_To_LV_Flag;
     int mask;
@@ -137,10 +139,11 @@ SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     _qMinusOne = q - 1;
     _nminusq = _actualsize - q;
     _phi = 0;
-    _delta = 1-0.001;
-    _ORGdelta = _delta;
+    _MCdelta = 1-0.01;
+    _LVdelta = 1-0.005;
+    _delta = _MCdelta;
     _alpha = 0.83;
-    _psi = 2.0 / 3.0;
+    _psi = 1.0 / 5.0;
     _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
     _Z = (int)((_k * (1 + _gamma)) / (_alpha * _gamma));
     if (_Z & 0b111) // integer multiple of 8
@@ -151,6 +154,7 @@ SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     counter = 0;
     initFastMod(_actualsize);
     _correctness_threshold = int(_gamma * q);
+    _min_maintenance_free = int(_gamma * q * _psi);
     Z_bound = q/10;
     switch_To_LV_Flag = 0;
     mask=0;
@@ -405,7 +409,7 @@ int SampledQMax_MC_V2<q, _actualsize>::checkPivot(int value) {
            return -1;
        }
        
-       new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, (int*)_A);
+       new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, _A);
 #else
         new_pivot_idx = PartitionAroundPivotValue(left, right, value, _A);
 #endif
@@ -413,10 +417,15 @@ int SampledQMax_MC_V2<q, _actualsize>::checkPivot(int value) {
     
 
     if (new_pivot_idx <= _correctness_threshold) {
-        //if (new_pivot_idx >= int(_gamma * q * _psi)) {
+        if (new_pivot_idx >= _min_maintenance_free) {
             return new_pivot_idx;
-        //}
+        }
+        else{
+//                 printf("%d\n",new_pivot_idx);
+                return -1;
+        }
     }
+//     printf("%d\n",new_pivot_idx);
     return -1*new_pivot_idx;
 }
 
@@ -472,6 +481,30 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
             _curIdx = idx;
             return _A[idx];
         }
+        else if(idx < -1){
+            int l = -idx - _correctness_threshold;
+//             printf("l = %d\n",l);
+            int pop = ( _k * ( 1- (q*_gamma*_alpha)/(l+(q*_gamma)) ) );
+//             printf("per = %f\n", (_k-1) -_k *( (q*_gamma*_alpha)/(l+(q*_gamma)) ));
+//             printf("pop = %d\n",pop);
+            for(int i=0;i<pop;i++){
+                p.pop();
+            }
+            top = p.top();
+            idx = checkPivot(top);
+//             printf("newidx = %d\n",idx);
+            if(idx < 0){
+//                 int s;
+//                 printf("wrong\n");
+//                 scanf("wrong %d\n",s);
+            }
+            else{
+                _curIdx = idx;
+                return top;
+            }
+        }  
+        
+        
         tries--;
     }
 
@@ -506,7 +539,7 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
         
         if(_Z >= Z_bound){
             switch_To_LV_Flag = 1;
-            _delta = _ORGdelta;
+            _delta = _LVdelta;
             _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
             _Z = (int)((_k * (1 + _gamma)) / (_alpha * _gamma));
             
@@ -567,6 +600,7 @@ template<int q, int _actualsize>
 void SampledQMax_MC_V2<q, _actualsize>::reset() {
     _phi = 0;
     _curIdx = 0;
+    _delta = _MCdelta;
     switch_To_LV_Flag = 0;
     mask=0;
 }
