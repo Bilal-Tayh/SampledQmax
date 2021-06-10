@@ -88,10 +88,10 @@ int main() {
       data[i] = std::rand();
       vals[i] = std::rand();
     }
-    list<int> qs = {/*10000, 100000, 1000000,*/ 10000000};
+    list<int> qs = {/*10000, 100000, 1000000,*/ 10000};
     for (int q : qs) {
-      benchmark_skiplistkv(q, c, &data, &vals, ostream);
-      benchmark_heapkv(q, c, &data, &vals, ostream);
+//       benchmark_skiplistkv(q, c, &data, &vals, ostream);
+//       benchmark_heapkv(q, c, &data, &vals, ostream);
       list<double> gammas ={4,2,1,0.5,0.25,0.1,0.05};
       for (double g : gammas) {
         benchmark_qmaxkv(q, g, c, &data, &vals, ostream);

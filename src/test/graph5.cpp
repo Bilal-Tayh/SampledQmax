@@ -15,6 +15,7 @@
 #include "../HeapKV.hpp"
 #include "../SkiplistKV.hpp"
 #include "Utils.hpp"
+#include "../SampledQMaxKV_LV_V2.hpp"
 
 #define CLK_PER_SEC CLOCKS_PER_SEC
 #define CAIDA16_SIZE 152197437
@@ -64,7 +65,7 @@ void benchmark_psheap(int q, key** keys, val** vals, ofstream &ostream, string d
   endt = clock();
   ftime(&endtb);
   time = ((double)(endt-begint))/CLK_PER_SEC;
-  ostream << dataset << ",Heap," << numKeys << "," << q << ",," << time << endl;
+  ostream << dataset << ",Heap," << numKeys << "," << q << "," << time << endl;
 }
 
 void benchmark_psqmax(int q, double gamma, key** keys, val** vals, ofstream &ostream, string dataset, int numKeys) {
@@ -86,7 +87,31 @@ void benchmark_psqmax(int q, double gamma, key** keys, val** vals, ofstream &ost
   endt = clock();
   ftime(&endtb);
   time = ((double)(endt-begint))/CLK_PER_SEC;
-  ostream << time << endl;
+  ostream << dataset << ",AmortizedQMax," << numKeys << "," << q << "," << gamma << "," << time << endl;
+}
+
+
+template<int q, int actualSize>
+void benchmark_psqmax_LV(key** keys, val** vals, ofstream &ostream, string dataset, int numKeys) {
+  std::random_device _rd;
+  std::mt19937 _e2(_rd());
+  std::uniform_real_distribution<double> _dist(0,1);
+  key *elements = *keys;
+  val *weights = *vals;
+  struct timeb begintb, endtb;
+  clock_t begint, endt;
+  double time;
+  SampledQMaxKV_LV_V2<q,actualSize> lvqmax = SampledQMaxKV_LV_V2<q,actualSize>();
+  begint = clock();
+  ftime(&begintb);
+  for (int i = 0; i < numKeys; i++) {
+    val priority = weights[i] / (1-_dist(_e2));
+    lvqmax.insert(elements[i], priority);
+  }
+  endt = clock();
+  ftime(&endtb);
+  time = ((double)(endt-begint))/CLK_PER_SEC;
+  ostream << dataset << ",LVAmortizedQMax," << numKeys << "," << q << "," << (double)actualSize/q-1 << "," << time << endl;
 }
 
 void getKeysAndValsFromFile(string filename, vector<key*> &keys, vector<val*> &vals, int size) {
@@ -109,6 +134,7 @@ void getKeysAndValsFromFile(string filename, vector<key*> &keys, vector<val*> &v
     iss >> id;
     try {
       file_keys[i] = stoull(id);
+      
       file_vals[i] = stoull(len);
     } catch (const std::invalid_argument& ia) {
       cerr << "Invalid argument: " << ia.what() << " at line " << i << endl;
@@ -150,9 +176,85 @@ int main() {
   getKeysAndValsFromFile("../datasets/CAIDA18/mergedPktlen_Srcip", keys, vals, CAIDA18_SIZE);
   sizes.push_back(CAIDA18_SIZE);
   datasets.push_back("caida18");
+  
 
-  list<unsigned int> qs = {10000, 100000, 1000000, 10000000};
+  
+
+  list<unsigned int> qs = {1000000, 10000000};
   for (int run = 0; run < 1; run++) {
+      
+      
+      
+      
+      
+      for (int run = 0; run < 1; run++) {
+        vector<key*>::iterator k_it = keys.begin();
+        vector<val*>::iterator v_it = vals.begin();
+        vector<int>::iterator s_it = sizes.begin();
+        vector<string>::iterator d_it = datasets.begin();
+        
+        for (auto& stream : streams) {
+        
+            key* k = *k_it;
+            val* v = *v_it;
+            int size = *s_it;
+            string dataset = *d_it;
+      
+    
+      
+
+        
+       
+        benchmark_psqmax_LV<1000000,(int) (1000000*(1+0.25))>(&k, &v, *stream, dataset, size);
+
+        benchmark_psqmax_LV<1000000,(int) (1000000*(1+0.1))>(&k, &v, *stream, dataset, size);
+
+        benchmark_psqmax_LV<1000000,(int) (1000000*(1+0.05))>(&k, &v, *stream, dataset, size);
+
+        benchmark_psqmax_LV<10000000,(int) (10000000*(1+0.25))>(&k, &v, *stream, dataset, size);
+
+        benchmark_psqmax_LV<10000000,(int) (10000000*(1+0.1))>(&k, &v, *stream, dataset, size);
+
+        benchmark_psqmax_LV<10000000,(int) (10000000*(1+0.05))>(&k, &v, *stream, dataset, size);
+        
+        
+        
+        
+         for (unsigned int q : qs ) {
+            list<double> gammas = { 0.25, 0.1, 0.05};
+            for (double g : gammas) {
+                benchmark_psqmax(q, g, &k, &v, *stream, dataset, size);
+                
+            }
+        }
+    
+      ++k_it;
+      ++v_it;
+      ++s_it;
+      ++d_it;
+    }
+  }  
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+/*      
+      
   for (unsigned q: qs) {
     vector<key*>::iterator k_it = keys.begin();
     vector<val*>::iterator v_it = vals.begin();
@@ -163,9 +265,7 @@ int main() {
       val* v = *v_it;
       int size = *s_it;
       string dataset = *d_it;
-//       benchmark_psheap(q, &k, &v, *stream, dataset, size);
-//       benchmark_psskiplist(q, &k, &v, *stream, dataset, size);
-      list<double> gammas = {0.125, 0.25,0.5 , 1, 2,4};
+      list<double> gammas = {0.25,0.1 , 0.05};
       for (double g : gammas) {
         benchmark_psqmax(q, g, &k, &v, *stream, dataset, size);
       }
@@ -174,8 +274,12 @@ int main() {
       ++s_it;
       ++d_it;
     }
+  }*/
   }
-  }
+  
+  
+  
+  
   univ1stream.close();
   caida16stream.close();
   caida18stream.close();

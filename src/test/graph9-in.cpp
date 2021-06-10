@@ -15,6 +15,7 @@
 #include "../QmaxIn.hpp"
 #include "../HeapIn.hpp"
 #include "../SkiplistIn.hpp"
+#include "../SampledQMaxIN_LV_V2.hpp"
 #include "Utils.hpp"
 
 
@@ -82,6 +83,14 @@ void update_with_zstar(pba_val &h) {
 }
 
 void final_step_on_all_keys(QMaxIn<key, pba_val>::outputkv<key, pba_val> okv, int q) {
+	for(int i = 0; i < q; ++i) {
+		update_with_zstar(okv.valArr[i]);
+	}
+}
+
+
+
+void final_step_on_all_keys_LV(SampledQMaxIN_LV_V2<key, pba_val>::outputkv<key, pba_val> okv, int q) {
 	for(int i = 0; i < q; ++i) {
 		update_with_zstar(okv.valArr[i]);
 	}
@@ -187,11 +196,11 @@ void benchmark_pbaqmax(int q, double gamma, key** keys, val** ws, ofstream &ostr
 	pba_val new_val(x, x, 1, 1-_dist(_e2));
 	pba_val min_val= qmax.getMinimalVal();
         if (new_val < min_val) {
-		update_zstar_with_minimal(new_val);
+            update_zstar_with_minimal(new_val);
         } else {
-		update_zstar_with_minimal(min_val);
-		qmax.insert(k, new_val);
-	}
+            update_zstar_with_minimal(min_val);
+            qmax.insert(k, new_val);
+        }
     } else {
 	pba_val new_val(x, x, 1, 1, z_star);
 	qmax.update(k, new_val);
@@ -203,6 +212,54 @@ void benchmark_pbaqmax(int q, double gamma, key** keys, val** ws, ofstream &ostr
   time = ((double)(endt-begint))/CLK_PER_SEC;
   ostream << dataset << ",AmortizedQMax," << numKeys << "," << q << "," << gamma << "," << time << endl;
 }
+
+
+
+
+
+
+
+
+
+void benchmark_pbaqmax_V2(int q, double gamma, key** keys, val** ws, ofstream &ostream, string dataset, int numKeys) {
+  random_device _rd;
+  mt19937 _e2(_rd());
+  uniform_real_distribution<double> _dist(0,1);
+  key *elements = *keys;
+  val *vals = *ws;
+  struct timeb begintb, endtb;
+  clock_t begint, endt;
+  double time;
+  SampledQMaxIN_LV_V2<key, pba_val> qmax = SampledQMaxIN_LV_V2<key, pba_val>(q, gamma, 0, pba_val());
+  init_pba();//z_star = 0;
+  begint = clock();
+  ftime(&begintb);
+  for (int i = 0; i < numKeys; i++) {
+    key k = elements[i];
+    val x = vals[i];
+    if(!qmax.isIn(k)){
+	pba_val new_val(x, x, 1, 1-_dist(_e2));
+	pba_val min_val= qmax.getMinimalVal();
+        if (new_val < min_val) {
+            update_zstar_with_minimal(new_val);
+        } else {
+            update_zstar_with_minimal(min_val);
+            qmax.insert(k, new_val);
+        }
+    } else {
+	pba_val new_val(x, x, 1, 1, z_star);
+	qmax.update(k, new_val);
+    }
+  }
+  final_step_on_all_keys_LV(qmax.largestQ(), q);
+  endt = clock();
+  ftime(&endtb);
+  time = ((double)(endt-begint))/CLK_PER_SEC;
+  ostream << dataset << ",AmortizedQMaxIN," << numKeys << "," << q << "," << gamma << "," << time << endl;
+}
+
+
+
 
 void getKeysAndWeightsFromFile(string filename, vector<key*> &keys, vector<val*> &ws, int size) {
   ifstream stream;
@@ -253,24 +310,24 @@ int main() {
   datasets.push_back("univ1");
   cout << "read UNIV1" << endl;
   
-//   ofstream caida16stream;
-//   setupOutputFile("../results/pba_caida.raw_res", caida16stream, false);
-//   streams.push_back(&caida16stream);
-//   getKeysAndWeightsFromFile("../datasets/CAIDA16/mergedAggregatedPktlen_Srcip", keys, ws, CAIDA16_SIZE);
-//   sizes.push_back(CAIDA16_SIZE);
-//   datasets.push_back("caida");
-//   cout << "read CAIDA16" << endl;
-//   
-//   ofstream caida18stream;
-//   setupOutputFile("../results/pba_caida18.raw_res", caida18stream, false);
-//   streams.push_back(&caida18stream);
-//   getKeysAndWeightsFromFile("../datasets/CAIDA18/mergedAggregatedPktlen_Srcip", keys, ws, CAIDA18_SIZE);
-//   sizes.push_back(CAIDA18_SIZE);
-//   datasets.push_back("caida18");
-//   cout << "read CAIDA18" << endl;
+  ofstream caida16stream;
+  setupOutputFile("../results/pba_caida.raw_res", caida16stream, false);
+  streams.push_back(&caida16stream);
+  getKeysAndWeightsFromFile("../datasets/CAIDA16/mergedAggregatedPktlen_Srcip", keys, ws, CAIDA16_SIZE);
+  sizes.push_back(CAIDA16_SIZE);
+  datasets.push_back("caida");
+  cout << "read CAIDA16" << endl;
   
-  list<unsigned int> qs = {10000};
-  for (int run = 0; run < 3; run++) {
+  ofstream caida18stream;
+  setupOutputFile("../results/pba_caida18.raw_res", caida18stream, false);
+  streams.push_back(&caida18stream);
+  getKeysAndWeightsFromFile("../datasets/CAIDA18/mergedAggregatedPktlen_Srcip", keys, ws, CAIDA18_SIZE);
+  sizes.push_back(CAIDA18_SIZE);
+  datasets.push_back("caida18");
+  cout << "read CAIDA18" << endl;
+  
+  list<unsigned int> qs = {1000000,10000000};
+  for (int run = 0; run < 5; run++) {
   for (unsigned q: qs) {
     vector<key*>::iterator k_it = keys.begin();
     vector<val*>::iterator w_it = ws.begin();
@@ -281,11 +338,12 @@ int main() {
       val* w = *w_it;
       int size = *s_it;
       string dataset = *d_it;
-      benchmark_pbaheap(q, &k, &w, *stream, dataset, size);
-      benchmark_pbaskiplist(q, &k, &w, *stream, dataset, size);
-      list<double> gammas = {0.05, 0.1, 0.25, 0.5};
+//       benchmark_pbaheap(q, &k, &w, *stream, dataset, size);
+//       benchmark_pbaskiplist(q, &k, &w, *stream, dataset, size);
+      list<double> gammas = {0.05,0.1,0.25};
       for (double g : gammas) {
-        benchmark_pbaqmax(q, g, &k, &w, *stream, dataset, size);
+//         benchmark_pbaqmax(q, g, &k, &w, *stream, dataset, size);
+        benchmark_pbaqmax_V2(q, g, &k, &w, *stream, dataset, size);
       }
       ++k_it;
       ++w_it;
@@ -295,8 +353,8 @@ int main() {
   }
   }
   univ1stream.close();
-//   caida16stream.close();
-//   caida18stream.close();
+  caida16stream.close();
+  caida18stream.close();
   return 0;
 }
 

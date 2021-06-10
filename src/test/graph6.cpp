@@ -14,6 +14,7 @@
 #include "../SkiplistKV.hpp"
 #include "../xxhash.h"
 #include "Utils.hpp"
+#include "../SampledQMaxKV_LV_V2.hpp"
 
 #define CLK_PER_SEC CLOCKS_PER_SEC
 #define CAIDA16_SIZE 152197439
@@ -57,7 +58,7 @@ void benchmark_hhheap(int q, key** keys, ofstream &ostream, string dataset, int 
   ostream << dataset << ",Heap," << numKeys << "," << q << ",," << time << endl;
 }
 
-double benchmark_hhqmax(int q, double gamma, key** keys, ofstream &ostream, string dataset, int numKeys) {
+void benchmark_hhqmax(int q, double gamma, key** keys, ofstream &ostream, string dataset, int numKeys) {
   key *elements = *keys;
   struct timeb begintb, endtb;
   clock_t begint, endt;
@@ -72,8 +73,27 @@ double benchmark_hhqmax(int q, double gamma, key** keys, ofstream &ostream, stri
   endt = clock();
   ftime(&endtb);
   time = ((double)(endt-begint))/CLK_PER_SEC;
-  return time;
-//   ostream << dataset << ",AmortizedQMax," << numKeys << "," << q << "," << gamma << "," << time << endl;
+  ostream << dataset << ",LVAmortizedQMax," << numKeys << "," << q << "," << gamma << "," << time << endl;
+}
+
+
+template<int q, int actualSize>
+void benchmark_hhqmax_LV(key** keys, ofstream &ostream, string dataset, int numKeys) {
+  key *elements = *keys;
+  struct timeb begintb, endtb;
+  clock_t begint, endt;
+  double time;
+  SampledQMaxKV_LV_V2<q,actualSize> lvqmax = SampledQMaxKV_LV_V2<q,actualSize>();
+  begint = clock();
+  ftime(&begintb);
+  for (int i = 0; i < numKeys; i++) {
+    val hash = XXH64((void *) &(elements[i]), sizeof(key), 1235);
+    lvqmax.insert(elements[i], hash);
+  }
+  endt = clock();
+  ftime(&endtb);
+  time = ((double)(endt-begint))/CLK_PER_SEC;
+  ostream << dataset << ",AmortizedQMax," << numKeys << "," << q << "," << (double)actualSize/q-1 << "," << time << endl;
 }
 
 void getKeysFromFile(string filename, vector<key*> &keys, int size) {
@@ -85,7 +105,6 @@ void getKeysFromFile(string filename, vector<key*> &keys, int size) {
 
   key* data = (key*) malloc(sizeof(key) * size);
   string line;
-  
   for (int i = 0; i< size; ++i){
     getline(stream, line);
     try {
@@ -107,14 +126,14 @@ int main() {
   vector<key*> keys;
   vector<int> sizes;
   vector<string> datasets;
-  
+
   ofstream univ1stream;
   setupOutputFile("../results/hh_univ1.xxh.raw_res", univ1stream, false);
   streams.push_back(&univ1stream);
   getKeysFromFile("../datasets/UNIV1/mergedIPID_Srcip", keys, UNIV1_SIZE);
   sizes.push_back(UNIV1_SIZE);
   datasets.push_back("univ1");
-  
+
   ofstream caida16stream;
   setupOutputFile("../results/hh_caida.xxh.raw_res", caida16stream, false);
   streams.push_back(&caida16stream);
@@ -129,27 +148,49 @@ int main() {
   sizes.push_back(CAIDA18_SIZE);
   datasets.push_back("caida18");
 
-  list<unsigned int> chis = {10000,100000,1000000,10000000};
-  for (unsigned int chi : chis ) {
+  list<unsigned int> chis = {1000000,10000000};
+  for (int run = 0; run < 2; run++) {
     vector<key*>::iterator k_it = keys.begin();
     vector<int>::iterator s_it = sizes.begin();
     vector<string>::iterator d_it = datasets.begin();
-    for(auto& stream : streams){
+    
+    for (auto& stream : streams) {
+      
         key* k = *k_it;
         int size = *s_it;
         string dataset = *d_it;
-    //       benchmark_hhheap(chi, &k, *stream, dataset, size);
-    //       benchmark_hhskiplist(chi, &k, *stream, dataset, size);
-        list<double> gammas = {0.125, 0.25,0.5 , 1, 2,4};//{0.5, 0.25, 0.1, 0.05};
-        for (double g : gammas) {
-        double sum = 0.0;
-        double num = 1.0;
-        for (int run1 = 0; run1 < num; run1++) {
-            sum += benchmark_hhqmax(chi, g, &k, *stream, dataset, size);
+      
+    
+      
+
+        
+       
+        benchmark_hhqmax_LV<1000000,(int) (1000000*(1+0.25))>(&k, *stream, dataset, size);
+
+        benchmark_hhqmax_LV<1000000,(int) (1000000*(1+0.1))>(&k, *stream, dataset, size);
+
+        benchmark_hhqmax_LV<1000000,(int) (1000000*(1+0.05))>(&k, *stream, dataset, size);
+
+        benchmark_hhqmax_LV<10000000,(int) (10000000*(1+0.25))>(&k, *stream, dataset, size);
+
+        benchmark_hhqmax_LV<10000000,(int) (10000000*(1+0.1))>(&k, *stream, dataset, size);
+
+        benchmark_hhqmax_LV<10000000,(int) (10000000*(1+0.05))>(&k, *stream, dataset, size);
+        
+        
+        
+        
+         for (unsigned int chi : chis ) {
+            list<double> gammas = { 0.25, 0.1, 0.05};
+            for (double g : gammas) {
+                benchmark_hhqmax(chi, g, &k, *stream, dataset, size);
+                
+            }
         }
-        univ1stream << sum/num << endl;
-    //         benchmark_hhqmax(chi, g, &k, *stream, dataset, size);
-    }
+    
+      ++k_it;
+      ++s_it;
+      ++d_it;
     }
   }
   univ1stream.close();
@@ -157,4 +198,3 @@ int main() {
   caida18stream.close();
   return 0;
 }
-

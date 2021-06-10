@@ -170,23 +170,63 @@ void benchmark_qmax_MC_V2(int** data, ofstream& ostream) {
 int main() {
   ofstream ostream;
   setupOutputFile("../results/timing_random.raw_res", ostream, false);
-  for (int run = 0; run < 3; run++) {
+  for (int run = 0; run < 1; run++) {
     int* data = (int*) malloc(sizeof(int) * N);
     for (int i = 0; i< N; ++i){
       data[i] = std::rand();
     }
-
-      list<double> gammas = {/*0.005,0.01,0.05,0.1,0.25,0.5,1,2,*/4};
-      list<unsigned int> qs = {/*10000, 100000, 1000000,*/ 10000000};
+/*
+      list<double> gammas = {0.005,0.01,0.05,0.1,0.25,0.5,1,2,0.01};
+      list<unsigned int> qs = {1000000, 1000000, 10000000, 1000};
       for (unsigned q: qs) {
     
         for (double g : gammas) {
-            benchmark_qmax(q, g, &data, ostream);
-            benchmark_qmax_LV(q, g, &data, ostream);
+//             benchmark_qmax(q, g, &data, ostream);
+//             benchmark_qmax_LV(q, g, &data, ostream);
         }
-      }
+      }*/
+
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+4))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+2))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+1))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+0.5))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+0.25))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+0.1))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+0.05))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+0.01))>(&data, ostream);
+//         benchmark_qmax_LV_V2<10000,(int) (10000*(1+0.005))>(&data, ostream);
+//     
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+4))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+2))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+1))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+0.5))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+0.25))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+0.1))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+0.05))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+0.01))>(&data, ostream);
+//         benchmark_qmax_LV_V2<100000,(int) (100000*(1+0.005))>(&data, ostream);
+//          
+        
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+4))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+2))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+1))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+0.5))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+0.25))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+0.1))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+0.05))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+0.01))>(&data, ostream);
+        benchmark_qmax_LV_V2<1000000,(int) (1000000*(1+0.005))>(&data, ostream);
         
         benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+4))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+2))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+1))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+0.5))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+0.25))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+0.1))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+0.05))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+0.01))>(&data, ostream);
+        benchmark_qmax_LV_V2<10000000,(int) (10000000*(1+0.005))>(&data, ostream);
+         
 
   }
   ostream.close();
