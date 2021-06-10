@@ -129,7 +129,7 @@ SampledQMax_LV_V2<q, _actualsize>::SampledQMax_LV_V2() {
     _qMinusOne = q - 1;
     _nminusq = _actualsize - q;
     _phi = -1;
-    _delta = 1-0.005;
+    _delta =0.6;
     _alpha = 0.83;
     _psi = 1.0 / 5.0;
     _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
@@ -137,6 +137,16 @@ SampledQMax_LV_V2<q, _actualsize>::SampledQMax_LV_V2() {
     if (_Z & 0b111) // integer multiple of 8
         _Z = _Z - (_Z & 0b111) + 8;
     _k = _Z * (_alpha * _gamma) / (1 + _gamma)+0.5;
+    
+    
+    if(q <= 100000){
+        _delta =0.99;
+        _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
+        _Z = (int)((_k * (1 + _gamma)) / (_alpha * _gamma));
+        if (_Z & 0b111) // integer multiple of 8
+            _Z = _Z - (_Z & 0b111) + 8;
+        _k = _Z * (_alpha * _gamma) / (1 + _gamma)+0.5;
+    }
     
 //     printf("%d\n",_k);
     
@@ -254,11 +264,6 @@ uint32_t SampledQMax_LV_V2<q, _actualsize>::mm256_extract_epi32_var_indx(int i) 
     __m256i val = _mm256_permute2f128_si256(rand_bits, _mm256_castsi128_si256(indx), 0);
     return _mm_cvtsi128_si32(_mm256_castsi256_si128(val));
 }
-
-
-
-
-
 template<int q, int _actualsize>
 int SampledQMax_LV_V2<q, _actualsize>::GenerateRandom() {
     //     return std::rand() % max; 
@@ -326,13 +331,13 @@ int SampledQMax_LV_V2<q, _actualsize>::checkPivot(int value) {
     
 
     if (new_pivot_idx <= _correctness_threshold) {
-        if (new_pivot_idx >= _min_maintenance_free) {
+//         if (new_pivot_idx >= _min_maintenance_free) {
             return new_pivot_idx;
-        }
-        else{
-//                 printf("2:  %d\n",new_pivot_idx);
-                return -1;
-        }
+//         }
+//         else{
+// //                 printf("2:  %d\n",new_pivot_idx);
+//                 return -1;
+//         }
     }
 //     printf("1:  %d\n",new_pivot_idx);
     return -1*new_pivot_idx;
@@ -381,10 +386,13 @@ int SampledQMax_LV_V2<q, _actualsize>::findKthLargestAndPivot() {
             _curIdx = idx;
             return _A[idx];
         }
-        else if(idx < -1){
+        else if(q>100000 and idx < -1){
             int l = -idx - _correctness_threshold;
 //             printf("l = %d\n",l);
-            int pop = ( _k * ( 1- (q*_gamma*_alpha)/(l+(q*_gamma)) ) );
+            
+
+            int pop = ( (_k-1) - _k * ( (q*_gamma*_alpha)/(l+(q*_gamma)) ) );
+            
 //             printf("per = %f\n", (_k-1) -_k *( (q*_gamma*_alpha)/(l+(q*_gamma)) ));
 //             printf("pop = %d\n",pop);
             for(int i=0;i<pop;i++){
@@ -432,4 +440,3 @@ void SampledQMax_LV_V2<q, _actualsize>::reset() {
 }
 
 #endif
-
