@@ -139,8 +139,8 @@ SampledQMax_MC_V2<q, _actualsize>::SampledQMax_MC_V2() {
     _qMinusOne = q - 1;
     _nminusq = _actualsize - q;
     _phi = 0;
-    _MCdelta = 1-0.01;
-    _LVdelta = 1-0.005;
+    _MCdelta = 0.99;
+    _LVdelta = 0.6;
     _delta = _MCdelta;
     _alpha = 0.83;
     _psi = 1.0 / 5.0;
@@ -417,13 +417,13 @@ int SampledQMax_MC_V2<q, _actualsize>::checkPivot(int value) {
     
 
     if (new_pivot_idx <= _correctness_threshold) {
-        if (new_pivot_idx >= _min_maintenance_free) {
+//         if (new_pivot_idx >= _min_maintenance_free) {
             return new_pivot_idx;
-        }
-        else{
+//         }
+//         else{
 //                 printf("%d\n",new_pivot_idx);
-                return -1;
-        }
+//                 return -1;
+//         }
     }
 //     printf("%d\n",new_pivot_idx);
     return -1*new_pivot_idx;
@@ -438,8 +438,6 @@ template<int q, int _actualsize>
 int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
    int tries = 2;
     while (tries != 0) {
-        
-        
 
         // p should contain the smallest _k values from the _Z sampled random values from _A
         std::priority_queue <int> p;
@@ -456,11 +454,7 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
         while (left_to_fill++ < 0) {
             p.pop();
         }
-        /*
-        for (int i = 0; i < _k; i++) {
-            int j = GenerateRandom();
-            p.push(_A[j]);
-        }*/
+        
         int top = p.top();
 
         while (left_to_sample > 0) {
@@ -481,10 +475,13 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
             _curIdx = idx;
             return _A[idx];
         }
-        else if(idx < -1){
+        else if(q>100000 and idx < -1){
             int l = -idx - _correctness_threshold;
 //             printf("l = %d\n",l);
-            int pop = ( _k * ( 1- (q*_gamma*_alpha)/(l+(q*_gamma)) ) );
+            
+
+            int pop = ( (_k-1) - _k * ( (q*_gamma*_alpha)/(l+(q*_gamma)) ) );
+            
 //             printf("per = %f\n", (_k-1) -_k *( (q*_gamma*_alpha)/(l+(q*_gamma)) ));
 //             printf("pop = %d\n",pop);
             for(int i=0;i<pop;i++){
@@ -502,9 +499,8 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
                 _curIdx = idx;
                 return top;
             }
-        }  
-        
-        
+        }
+            
         tries--;
     }
 
@@ -512,7 +508,7 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
     int left = 0, right = _actualsizeMinusOne;
     while (left <= right) {
         int pivot_idx = left;
-        int new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, (int*)_A);
+        int new_pivot_idx = PartitionAroundPivot(left, right, pivot_idx, _A);
         if (new_pivot_idx == _nminusq) {
             _curIdx = new_pivot_idx;
             return _A[new_pivot_idx];
@@ -529,17 +525,21 @@ int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot_LV(){
 
 
 
+
+
 template<int q, int _actualsize>
 int SampledQMax_MC_V2<q, _actualsize>::findKthLargestAndPivot() {
         
         int Z = _Z;
         int k = _k;
-        _delta=_delta/2.0;
         updateZK();
         
         if(_Z >= Z_bound){
             switch_To_LV_Flag = 1;
-            _delta = _LVdelta;
+            if(q>100000)
+                _delta = _LVdelta;
+            else
+                _delta = _MCdelta;
             _k = ceil(((_alpha * _gamma * (2 + _gamma - _alpha * _gamma)) / (pow(_gamma - _alpha * _gamma, 2))) * log(1 / _delta));
             _Z = (int)((_k * (1 + _gamma)) / (_alpha * _gamma));
             
